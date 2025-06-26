@@ -117,9 +117,9 @@
         <iframe 
             id="iframe" 
             src="https://next-1252777009.cos.ap-chengdu.myqcloud.com/bg/index.htm"
-            sandbox="allow-same-origin allow-scripts"
-            referrerpolicy="strict-origin-when-cross-origin"
-            loading="lazy"
+            sandbox="allow-same-origin allow-scripts allow-popups allow-popups-to-escape-sandbox allow-forms"
+            referrerpolicy="no-referrer-when-downgrade"
+            loading="eager"
             aria-label="附件作品集内容"
         ></iframe>
     </div>
@@ -131,9 +131,11 @@
         const errorMessage = document.getElementById('error-message');
         
         // 设置iframe加载超时（毫秒）
-        const LOAD_TIMEOUT = 15000;
+        const LOAD_TIMEOUT = 20000; // 延长超时时间到20秒
         let loadTimeout;
         let isContentLoaded = false;
+        let loadAttempts = 0;
+        const MAX_ATTEMPTS = 3;
         
         // 显示加载状态
         function showLoading() {
@@ -163,24 +165,32 @@
         }
         
         // 显示错误信息
-        function showError() {
+        function showError(message = '无法加载内容') {
             clearTimeout(loadTimeout);
             loadingIndicator.style.display = 'none';
             iframe.style.display = 'none';
+            errorMessage.querySelector('p').textContent = message;
             errorMessage.style.display = 'block';
-            console.error('iframe加载失败');
+            console.error('iframe加载失败:', message);
         }
         
         // 重新加载iframe
         function reloadIframe() {
+            loadAttempts++;
+            
+            if (loadAttempts > MAX_ATTEMPTS) {
+                showError('多次尝试加载失败，请检查链接是否有效');
+                return;
+            }
+            
             showLoading();
             // 使用更可靠的方法重置iframe
             const newIframe = document.createElement('iframe');
             newIframe.id = 'iframe';
             newIframe.src = 'https://next-1252777009.cos.ap-chengdu.myqcloud.com/bg/index.htm';
-            newIframe.sandbox = 'allow-same-origin allow-scripts';
-            newIframe.referrerpolicy = 'strict-origin-when-cross-origin';
-            newIframe.loading = 'lazy';
+            newIframe.sandbox = 'allow-same-origin allow-scripts allow-popups allow-popups-to-escape-sandbox allow-forms';
+            newIframe.referrerpolicy = 'no-referrer-when-downgrade';
+            newIframe.loading = 'eager';
             newIframe.ariaLabel = '附件作品集内容';
             
             // 替换旧的iframe
@@ -197,7 +207,7 @@
         function setLoadTimeout() {
             loadTimeout = setTimeout(() => {
                 if (!isContentLoaded) {
-                    showError();
+                    showError('加载超时，请检查网络连接');
                 }
             }, LOAD_TIMEOUT);
         }
@@ -208,7 +218,9 @@
             iframeElement.addEventListener('load', showContent);
             
             // 监听iframe加载错误事件
-            iframeElement.addEventListener('error', showError);
+            iframeElement.addEventListener('error', () => {
+                showError('加载内容时发生错误');
+            });
             
             // 额外的加载状态检查
             iframeElement.addEventListener('loadstart', () => {
@@ -220,12 +232,18 @@
                 try {
                     // 尝试访问iframe内容
                     if (iframeElement.contentDocument && iframeElement.contentDocument.body) {
-                        showContent();
-                        return true;
+                        // 检查body是否为空或有实际内容
+                        if (iframeElement.contentDocument.body.innerHTML.trim() !== '') {
+                            showContent();
+                            return true;
+                        }
                     }
                 } catch (e) {
                     // 跨域访问会抛出异常，这是预期的
                     console.log('跨域访问iframe内容被阻止');
+                    // 无法检查内容，但iframe已加载，可能是跨域问题
+                    showContent();
+                    return true;
                 }
                 return false;
             }
@@ -287,14 +305,34 @@
                 }
             });
             
-            // 添加键盘事件处理（可选）
+            // 添加键盘事件处理
             document.addEventListener('keydown', (e) => {
                 // F5 刷新页面
-                if (e.key === 'F5') {
+                if (e.key === 'F5' || (e.ctrlKey && e.key === 'r')) {
                     e.preventDefault();
                     reloadIframe();
                 }
             });
+            
+            // 添加移动端触摸支持
+            let touchStartX = 0;
+            let touchEndX = 0;
+            
+            document.addEventListener('touchstart', e => {
+                touchStartX = e.changedTouches[0].screenX;
+            }, false);
+            
+            document.addEventListener('touchend', e => {
+                touchEndX = e.changedTouches[0].screenX;
+                handleSwipe();
+            }, false);
+            
+            function handleSwipe() {
+                // 检测是否有足够的滑动距离来触发刷新
+                if (touchEndX - touchStartX > 100) {
+                    reloadIframe();
+                }
+            }
         }
         
         // 页面加载完成后初始化
@@ -302,4 +340,3 @@
     </script>
 </body>
 </html>
-    
